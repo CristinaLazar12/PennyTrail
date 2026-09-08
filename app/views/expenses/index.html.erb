@@ -1,0 +1,14 @@
+<h1>PennyTrail</h1>
+<p>Your expenses, clearly tracked.</p>
+
+<% @expenses.each do |expense| %>
+    <article>
+        <h2><%= expense.description %></h2>
+        <p><%= number_to_currency(expense.amount, unit: "RON ") %></p>
+        <p><%= expense.spent_on %> . <%= expense.category %></p>
+    </article>
+<% end %>
+
+<% if @expenses.empty? %>
+    <p>No expenses yet.</p>
+<% end %>
