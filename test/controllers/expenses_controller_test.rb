@@ -2,7 +2,7 @@ require "test_helper"
 
 class ExpensesControllerTest < ActionDispatch::IntegrationTest
   test "index displays an expense" do
-    Expense.create!(
+    expense = Expense.create!(
       description: "Lunch at cafe",
       amount: "45.50",
       spent_on: Date.current,
@@ -14,6 +14,8 @@ class ExpensesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "h2", text: "Lunch at cafe"
     assert_select "p", text: "RON 45.50"
+
+    assert_select "a[href=?]", expense_path(expense), text: "Lunch at cafe"
   end
 
   test "creates an expense with valid attributes" do
@@ -53,5 +55,31 @@ class ExpensesControllerTest < ActionDispatch::IntegrationTest
     assert_select 'input[name="expense[spent_on]"]' do |inputs|
       assert_equal Date.current.to_s, inputs.first["value"]
     end
+  end
+
+  test "show displays expense details" do
+    expense = Expense.create!(
+      description: "Lunch at cafe",
+      amount: "45.50",
+      spent_on: Date.current,
+      category: "Food"
+    )
+
+    get expense_url(expense)
+
+    assert_response :success
+    assert_select "h1", text: "Lunch at cafe"
+    assert_select "p", text: "Food"
+    assert_select "p", text: expense.spent_on.to_s
+    assert_select "p", text: "RON 45.50"
+    assert_select "a[href=?]", expenses_path, text: "Back to expenses"
+  end
+
+  test "show returns 404 error for unknown expense" do
+    missing_id = (Expense.maximum(:id) || 0) + 1
+
+    get expense_url(missing_id)
+
+    assert_response :not_found
   end
 end

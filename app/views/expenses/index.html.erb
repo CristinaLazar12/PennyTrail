@@ -1,9 +1,11 @@
 <h1>PennyTrail</h1>
 <p>Your expenses, clearly tracked.</p>
 
+<%= link_to "Add expense", new_expense_path %>
+
 <% @expenses.each do |expense| %>
     <article>
-        <h2><%= expense.description %></h2>
+        <h2><%= link_to expense.description, expense_path(expense) %></h2>
         <p><%= number_to_currency(expense.amount, unit: "RON ") %></p>
         <p><%= expense.spent_on %> . <%= expense.category %></p>
     </article>
