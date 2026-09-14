@@ -21,6 +21,20 @@ class ExpensesController < ApplicationController
     @expense = Expense.find(params[:id])
   end
 
+  def edit
+    @expense = Expense.find(params[:id])
+  end
+
+  def update
+    @expense = Expense.find(params[:id])
+
+    if @expense.update(expense_params)
+      redirect_to expense_path(@expense), status: :see_other
+    else
+      render :edit, status: :unprocessable_entity
+    end
+  end
+
   private
 
   def expense_params
