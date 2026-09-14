@@ -1,0 +1,5 @@
+<h1><%= @expense.description %></h1>
+<p><%= @expense.category %></p>
+<p><%= @expense.spent_on %></p>
+<p><%= number_to_currency(@expense.amount, unit: "RON ") %></p>
+<%= link_to "Back to expenses", expenses_path %>

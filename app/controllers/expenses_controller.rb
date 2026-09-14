@@ -17,6 +17,10 @@ class ExpensesController < ApplicationController
     end
   end
 
+  def show
+    @expense = Expense.find(params[:id])
+  end
+
   private
 
   def expense_params
