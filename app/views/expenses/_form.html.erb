@@ -21,7 +21,7 @@
 
     <div>
         <%= form.label :category %>
-        <%= form.text_field :category %>
+        <%= form.select :category, Expense::CATEGORIES, prompt: "Choose a category" %>
     </div>
 
     <div>

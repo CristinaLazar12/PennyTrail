@@ -18,7 +18,7 @@ class ExpensesControllerTest < ActionDispatch::IntegrationTest
           description: "Dinner",
           amount: "45.50",
           spent_on: Date.current,
-          category: "Food"
+          category: "Dining Out"
         }
       }
     end
@@ -33,7 +33,7 @@ class ExpensesControllerTest < ActionDispatch::IntegrationTest
           description: "Dinner",
           amount: "0",
           spent_on: Date.current,
-          category: "Food"
+          category: "Dining Out"
         }
       }
     end
