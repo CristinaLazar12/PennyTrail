@@ -3,3 +3,4 @@
 <p><%= @expense.spent_on %></p>
 <p><%= number_to_currency(@expense.amount, unit: "RON ") %></p>
 <%= link_to "Back to expenses", expenses_path %>
+<%= link_to "Edit expense", edit_expense_path(@expense) %>
