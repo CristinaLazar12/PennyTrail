@@ -35,6 +35,14 @@ class ExpensesController < ApplicationController
     end
   end
 
+  def destroy
+    @expense = Expense.find(params[:id])
+    @expense.destroy
+
+    redirect_to expenses_path, notice: "Expense was successfully deleted.",
+      status: :see_other
+  end
+
   private
 
   def expense_params

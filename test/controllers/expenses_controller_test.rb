@@ -87,4 +87,12 @@ class ExpensesControllerTest < ActionDispatch::IntegrationTest
     @expense.reload
     assert_equal original_amount, @expense.amount
   end
+
+  test "should delete expense" do
+    assert_difference("Expense.count", -1) do
+      delete expense_url(@expense)
+    end
+
+    assert_redirected_to expenses_url
+  end
 end
