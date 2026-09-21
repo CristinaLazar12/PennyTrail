@@ -1,0 +1,22 @@
+<h1>Monthly spending summary</h1>
+
+<%= form_with url: summary_path, method: :get do |form| %>
+  <%= form.label :month, "Month" %>
+  <%= form.month_field :month, value: @month_start.strftime("%Y-%m") %>
+  <%= form.submit "Show summary" %>
+<% end %>
+
+<p><%= @month_start.strftime("%B %Y") %></p>
+
+<p><%= number_to_currency(@total, unit: "RON ") %></p>
+
+<% if @totals_by_category.empty? %>
+  <p>No expenses for this month.</p>
+<% end %>
+
+<% @totals_by_category.each do |category, amount| %>
+  <p><%= category %> - <%= number_to_currency(amount, unit: "RON ") %></p>
+<% end %>
+
+<%= link_to "Back to expenses", expenses_path %>
+

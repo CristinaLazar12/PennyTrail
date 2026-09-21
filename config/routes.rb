@@ -13,4 +13,6 @@ Rails.application.routes.draw do
   # root "posts#index"
   root "expenses#index"
   resources :expenses, only: [ :index, :new, :create, :show, :edit, :update, :destroy ]
+
+  get "summary", to: "summaries#show"
 end
