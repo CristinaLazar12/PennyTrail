@@ -1,13 +1,13 @@
 require "test_helper"
 
 class ExpenseCategorizerTest < ActiveSupport::TestCase
-    setup do #setup rulează înaintea fiecărui test: păstrează valoarea existentă și pune "test-key" în locul ei.
+    setup do # setup rulează înaintea fiecărui test: păstrează valoarea existentă și pune "test-key" în locul ei.
         @original_api_key = ENV["GEMINI_API_KEY"]
-        ENV["GEMINI_API_KEY"] = "test-key" #cheie fictivă pentru teste
-        #"test-key" este doar un text pentru teste. WebMock va intercepta cererea, deci nu avem nevoie de o cheie reală
+        ENV["GEMINI_API_KEY"] = "test-key" # cheie fictivă pentru teste
+      # "test-key" este doar un text pentru teste. WebMock va intercepta cererea, deci nu avem nevoie de o cheie reală
     end
 
-    teardown do #teardown rulează după fiecare test: restaurează valoarea inițială. Dacă nu exista, variabila este eliminată
+    teardown do # teardown rulează după fiecare test: restaurează valoarea inițială. Dacă nu exista, variabila este eliminată
         ENV["GEMINI_API_KEY"] = @original_api_key
     end
 
