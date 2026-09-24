@@ -2,6 +2,9 @@ require "net/http"
 require "json"
 
 class ExpenseCategorizer
+    class Error < StandardError # class Error definește un tip de eroare al nostru.;< StandardError înseamnă că moștenește comportamentul unei erori Ruby obișnuite
+    end
+
     def initialize(description:, amount:)
         @description = description
         @amount = amount
@@ -46,16 +49,48 @@ class ExpenseCategorizer
 
         # tratăm cazul în care Gemini răspunde cu o eroare
         unless response.is_a?(Net::HTTPSuccess) # verifică dacă răspunsul HTTP indică succes — un cod din intervalul 200–299
-            raise "AI request failed with HTTP status #{response.code}." # daca nu, raise opreste metoda si semnaleaza o eroare
+            raise Error, "AI request failed with HTTP status #{response.code}." # daca nu, raise opreste metoda si semnaleaza o eroare
         end
 
         data = JSON.parse(response.body) # JSON.parse transformă textul JSON într-un hash Ruby
-        category = data["candidates"][0]["content"]["parts"][0]["text"].strip # category = ... păstrează textul extras într-o variabilă. Navigăm prin acel hash: primul răspuns din candidates → content → prima parte din parts → text. [0] înseamnă primul element al unei liste.strip elimină spațiile și liniile noi de la început și sfârșit. De exemplu, "Dining Out\n" devine "Dining Out"
+
+        unless data.is_a?(Hash) # verifică dacă răspunsul are la bază un obiect JSON, cum ne așteptăm
+            raise Error, "AI service returned an invalid response structure.", cause: nil
+        end
+
+        begin
+            text = data.dig("candidates", 0, "content", "parts", 0, "text")
+        rescue TypeError
+            raise Error, "AI service returned an invalid response structure.", cause: nil
+        end
+        # tratează eroarea doar pentru extragerea cu dig
+
+        unless text.is_a?(String) && text.strip.present?
+            # text.is_a?(String) verifică dacă valoarea este text.
+            # && înseamnă „și”; verificarea din dreapta se execută doar dacă prima este adevărată.
+            # text.strip.present? verifică dacă textul nu este gol după eliminarea spațiilor.
+            raise Error, "AI service returned no category.", cause: nil
+        end
+
+        category = text.strip
 
         unless Expense::CATEGORIES.include?(category) # daca lista CATEGORIES nu contine exact acea categorie
-            raise "AI returned an unsupported category." # semnaleaza o eroare
+            raise Error, "AI returned an unsupported category.", cause: nil # semnaleaza o eroare
         end
 
         category # valoarea returnată de metodă atunci când verificarea trece
+    rescue Net::OpenTimeout, Net::ReadTimeout
+        # Net::OpenTimeout — nu am reușit să stabilim conexiunea în timpul permis.
+        # Net::ReadTimeout — am așteptat prea mult la citirea răspunsului.
+        # rescue — interceptează aceste erori produse în metoda call.
+        raise Error, "AI service timed out. Please try again.", cause: nil
+    # raise Error — le transformă în tipul nostru comun, ExpenseCategorizer::Error.
+    rescue SocketError, Errno::ECONNREFUSED, Errno::ECONNRESET
+        # SocketError — o problemă de rețea, de exemplu găsirea adresei serverului.
+        # Errno::ECONNREFUSED — conexiunea a fost refuzată.
+        # Errno::ECONNRESET — conexiunea a fost întreruptă brusc.
+        raise Error, "Could not connect to AI service. Please try again.", cause: nil
+    rescue JSON::ParserError # un răspuns care nu este JSON valid
+        raise Error, "AI service returned invalid JSON.", cause: nil
     end
 end
