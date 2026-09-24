@@ -12,7 +12,7 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
     end
 
     test "returns the category received from Gemini" do
-        fake_response = {
+        fake_response = { # pregătim un răspuns cu aceeași structură ca răspunsul Gemini.
             candidates: [
                 {
                     content: {
@@ -24,11 +24,11 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
             ]
         }
 
-        stub_request(
+        stub_request( # îi spunem lui WebMock: „Când codul face POST la această adresă, returnează răspunsul nostru.”
             :post,
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
         ).to_return(
-            status: 200,
+            status: 200, # simulăm o cerere reușită.
             body: fake_response.to_json,
             headers: { "Content-Type" => "application/json" }
         )
@@ -38,7 +38,7 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
             amount: "120.50"
         )
 
-        assert_equal "Dining Out", categorizer.call
+        assert_equal "Dining Out", categorizer.call # categorizer.call — execută codul nostru, dar WebMock înlocuiește comunicarea cu serverul.
     end
 
     test "rejects an unsupported category" do
@@ -68,7 +68,7 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
             amount: "120.50"
         )
 
-        assert_raises(RuntimeError) do
+        assert_raises(ExpenseCategorizer::Error) do # assert_raises verifică dacă acel cod semnalează o eroare. Aici ne așteptăm la eroarea produsă de raise "AI returned an unsupported category."
             categorizer.call
         end
     end
@@ -88,10 +88,243 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
             amount: "120.50"
         )
 
-        error = assert_raises(RuntimeError) do
+        error = assert_raises(ExpenseCategorizer::Error) do
             categorizer.call
         end
 
         assert_equal "AI request failed with HTTP status 503.", error.message
+    end
+
+    test "raises an error when the request times out" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_raise(Net::ReadTimeout) # to_raise simulează o eroare în timpul cererii, fără să contacteze Gemini sau să aștepte.
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "AI service timed out. Please try again.", error.message
+    end
+
+    test "raises an error when the connection times out" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_raise(Net::OpenTimeout)
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "AI service timed out. Please try again.", error.message
+    end
+
+    test "raises an error when the connection is refused" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_raise(Errno::ECONNREFUSED)
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "Could not connect to AI service. Please try again.", error.message
+    end
+
+    test "raises an error when the response is not valid JSON" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_return(
+            status: 200,
+            body: "not valid JSON",
+            headers: { "Content-Type" => "application/json" }
+        )
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "AI service returned invalid JSON.", error.message
+        assert_nil error.cause
+    end
+
+    test "raises an error when the category is missing" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_return(
+            status: 200,
+            body: '{"candidates":[]}',
+            headers: { "Content-Type" => "application/json" }
+        )
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "AI service returned no category.", error.message
+    end
+
+    test "raises an error when the category is blank" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_return(
+            status: 200,
+            body: {
+                candidates: [
+                    {
+                        content: {
+                            parts: [
+                                { text: "   " }
+                            ]
+                        }
+                    }
+                ]
+            }.to_json,
+            headers: { "Content-Type" => "application/json" }
+        )
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "AI service returned no category.", error.message
+    end
+
+    test "raises an error when authentication fails" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_return(
+            status: 401,
+            body: '{"error":{"message":"Unauthenticated"}}',
+            headers: { "Content-Type" => "application/json" }
+        )
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "AI request failed with HTTP status 401.", error.message
+    end
+
+    test "raises an error when the rate limit is reached" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_return(
+            status: 429,
+            body: '{"error":{"message":"Resource exhausted"}}',
+            headers: { "Content-Type" => "application/json" }
+        )
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "AI request failed with HTTP status 429.", error.message
+    end
+
+    test "raises an error when the response structure is invalid" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_return(
+            status: 200,
+            body: '{"candidates":"unexpected"}',
+            headers: { "Content-Type" => "application/json" }
+        )
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "AI service returned an invalid response structure.", error.message
+    end
+
+    test "raises an error when the server cannot be resolved" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_raise(SocketError)
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "Could not connect to AI service. Please try again.", error.message
+    end
+
+    test "raises an error when the connection is reset" do
+        stub_request(
+            :post,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+        ).to_raise(Errno::ECONNRESET)
+
+        categorizer = ExpenseCategorizer.new(
+            description: "Dinner at Restaurant",
+            amount: "120.50"
+        )
+
+        error = assert_raises(ExpenseCategorizer::Error) do
+            categorizer.call
+        end
+
+        assert_equal "Could not connect to AI service. Please try again.", error.message
     end
 end
