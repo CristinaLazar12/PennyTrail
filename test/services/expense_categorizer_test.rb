@@ -1,18 +1,17 @@
 require "test_helper"
 
 class ExpenseCategorizerTest < ActiveSupport::TestCase
-    setup do # setup rulează înaintea fiecărui test: păstrează valoarea existentă și pune "test-key" în locul ei.
+    setup do
         @original_api_key = ENV["GEMINI_API_KEY"]
-        ENV["GEMINI_API_KEY"] = "test-key" # cheie fictivă pentru teste
-      # "test-key" este doar un text pentru teste. WebMock va intercepta cererea, deci nu avem nevoie de o cheie reală
+        ENV["GEMINI_API_KEY"] = "test-key"
     end
 
-    teardown do # teardown rulează după fiecare test: restaurează valoarea inițială. Dacă nu exista, variabila este eliminată
+    teardown do
         ENV["GEMINI_API_KEY"] = @original_api_key
     end
 
     test "returns the category received from Gemini" do
-        fake_response = { # pregătim un răspuns cu aceeași structură ca răspunsul Gemini.
+        fake_response = {
             candidates: [
                 {
                     content: {
@@ -24,11 +23,11 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
             ]
         }
 
-        stub_request( # îi spunem lui WebMock: „Când codul face POST la această adresă, returnează răspunsul nostru.”
+        stub_request(
             :post,
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
         ).to_return(
-            status: 200, # simulăm o cerere reușită.
+            status: 200,
             body: fake_response.to_json,
             headers: { "Content-Type" => "application/json" }
         )
@@ -38,7 +37,7 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
             amount: "120.50"
         )
 
-        assert_equal "Dining Out", categorizer.call # categorizer.call — execută codul nostru, dar WebMock înlocuiește comunicarea cu serverul.
+        assert_equal "Dining Out", categorizer.call
     end
 
     test "rejects an unsupported category" do
@@ -68,7 +67,7 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
             amount: "120.50"
         )
 
-        assert_raises(ExpenseCategorizer::Error) do # assert_raises verifică dacă acel cod semnalează o eroare. Aici ne așteptăm la eroarea produsă de raise "AI returned an unsupported category."
+        assert_raises(ExpenseCategorizer::Error) do
             categorizer.call
         end
     end
@@ -99,7 +98,7 @@ class ExpenseCategorizerTest < ActiveSupport::TestCase
         stub_request(
             :post,
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
-        ).to_raise(Net::ReadTimeout) # to_raise simulează o eroare în timpul cererii, fără să contacteze Gemini sau să aștepte.
+        ).to_raise(Net::ReadTimeout)
 
         categorizer = ExpenseCategorizer.new(
             description: "Dinner at Restaurant",
