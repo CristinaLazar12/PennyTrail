@@ -2,111 +2,100 @@ require "net/http"
 require "json"
 
 class ExpenseCategorizer
-    class Error < StandardError # class Error definește un tip de eroare al nostru.;< StandardError înseamnă că moștenește comportamentul unei erori Ruby obișnuite
-    end
+  class Error < StandardError
+  end
 
-    def initialize(description:, amount:)
-        @description = description
-        @amount = amount
-    end
+  def initialize(description:, amount:)
+    @description = description
+    @amount = amount
+  end
 
-    def prompt
-        "Choose one category for this expense. " \
-            "Description: #{@description}. " \
-            "Amount: #{@amount} RON. " \
-            "Allowed categories: #{Expense::CATEGORIES.join(', ')}. " \
-            "Return only the category name, without explanations or a prefix."
-    end
+  def prompt
+    "Choose one category for this expense. " \
+      "Description: #{@description}. " \
+      "Amount: #{@amount} RON. " \
+      "Allowed categories: #{Expense::CATEGORIES.join(', ')}. " \
+      "Return only the category name, without explanations or a prefix."
+  end
 
-    def request_body
+  def request_body
+    {
+      contents: [
         {
-            contents: [ # lista mesajelor trimise
-                {
-                    parts: [ # partile unui mesaj; noi trimitem o singura parte, text
-                        { text: prompt } # apeleaza metoda prompt si pune textul rezultat aici
-                    ]
-                }
-            ]
-        }.to_json # transforma hasul Ruby intr-un text JSON, potrivit pt trimitere
+          parts: [
+            { text: prompt }
+          ]
+        }
+      ]
+    }.to_json
+  end
+
+  def call
+    uri = URI("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent")
+    request = Net::HTTP::Post.new(uri)
+    request["Content-Type"] = "application/json"
+
+    api_key = ENV["GEMINI_API_KEY"]
+
+    if api_key.blank?
+      raise Error, "AI service is not configured."
     end
 
-    def call
-        uri = URI("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent") # adresa API către care vom trimite mesajul
-        request = Net::HTTP::Post.new(uri) # pregateste o cerere POST
-        request["Content-Type"] = "application/json" # anunta ca trimitem JSON
+    request["x-goog-api-key"] = api_key
+    request.body = request_body
 
-        api_key = ENV["GEMINI_API_KEY"]
+    response = nil
 
-            if api_key.blank?
-                raise Error, "AI service is not configured."
-            end
+    # Retry once after HTTP 503 to handle temporary service unavailability.
+    2.times do |attempt|
+      response = Net::HTTP.start(
+        uri.hostname,
+        uri.port,
+        use_ssl: true,
+        open_timeout: 10,
+        read_timeout: 30
+      ) do |http|
+        http.request(request)
+      end
 
-            request["x-goog-api-key"] = api_key
+      break unless response.code == "503" && attempt == 0
 
-        request.body = request_body # pune JSON-ul construit de mine în corpul cererii.
-
-        response = nil
-
-        2.times do |attempt|
-        response = Net::HTTP.start(
-            uri.hostname,
-            uri.port,
-            use_ssl: true,
-            open_timeout: 10,
-            read_timeout: 30
-        ) do |http|
-            http.request(request)
-        end
-
-        break unless response.code == "503" && attempt == 0
-
-        sleep 1
-        end
-
-        # tratăm cazul în care Gemini răspunde cu o eroare
-        unless response.is_a?(Net::HTTPSuccess) # verifică dacă răspunsul HTTP indică succes — un cod din intervalul 200–299
-            raise Error, "AI request failed with HTTP status #{response.code}." # daca nu, raise opreste metoda si semnaleaza o eroare
-        end
-
-        data = JSON.parse(response.body) # JSON.parse transformă textul JSON într-un hash Ruby
-
-        unless data.is_a?(Hash) # verifică dacă răspunsul are la bază un obiect JSON, cum ne așteptăm
-            raise Error, "AI service returned an invalid response structure.", cause: nil
-        end
-
-        begin
-            text = data.dig("candidates", 0, "content", "parts", 0, "text")
-        rescue TypeError
-            raise Error, "AI service returned an invalid response structure.", cause: nil
-        end
-        # tratează eroarea doar pentru extragerea cu dig
-
-        unless text.is_a?(String) && text.strip.present?
-            # text.is_a?(String) verifică dacă valoarea este text.
-            # && înseamnă „și”; verificarea din dreapta se execută doar dacă prima este adevărată.
-            # text.strip.present? verifică dacă textul nu este gol după eliminarea spațiilor.
-            raise Error, "AI service returned no category.", cause: nil
-        end
-
-        category = text.strip
-
-        unless Expense::CATEGORIES.include?(category) # daca lista CATEGORIES nu contine exact acea categorie
-            raise Error, "AI returned an unsupported category.", cause: nil # semnaleaza o eroare
-        end
-
-        category # valoarea returnată de metodă atunci când verificarea trece
-    rescue Net::OpenTimeout, Net::ReadTimeout
-        # Net::OpenTimeout — nu am reușit să stabilim conexiunea în timpul permis.
-        # Net::ReadTimeout — am așteptat prea mult la citirea răspunsului.
-        # rescue — interceptează aceste erori produse în metoda call.
-        raise Error, "AI service timed out. Please try again.", cause: nil
-    # raise Error — le transformă în tipul nostru comun, ExpenseCategorizer::Error.
-    rescue SocketError, Errno::ECONNREFUSED, Errno::ECONNRESET
-        # SocketError — o problemă de rețea, de exemplu găsirea adresei serverului.
-        # Errno::ECONNREFUSED — conexiunea a fost refuzată.
-        # Errno::ECONNRESET — conexiunea a fost întreruptă brusc.
-        raise Error, "Could not connect to AI service. Please try again.", cause: nil
-    rescue JSON::ParserError # un răspuns care nu este JSON valid
-        raise Error, "AI service returned invalid JSON.", cause: nil
+      sleep 1
     end
+
+    unless response.is_a?(Net::HTTPSuccess)
+      raise Error, "AI request failed with HTTP status #{response.code}."
+    end
+
+    data = JSON.parse(response.body)
+
+    unless data.is_a?(Hash)
+      raise Error, "AI service returned an invalid response structure.", cause: nil
+    end
+
+    begin
+      text = data.dig("candidates", 0, "content", "parts", 0, "text")
+    rescue TypeError
+      raise Error, "AI service returned an invalid response structure.", cause: nil
+    end
+
+    unless text.is_a?(String) && text.strip.present?
+      raise Error, "AI service returned no category.", cause: nil
+    end
+
+    category = text.strip
+
+    unless Expense::CATEGORIES.include?(category)
+      raise Error, "AI returned an unsupported category.", cause: nil
+    end
+
+    category
+  rescue Net::OpenTimeout, Net::ReadTimeout
+    raise Error, "AI service timed out. Please try again.", cause: nil
+  rescue SocketError, Errno::ECONNREFUSED, Errno::ECONNRESET
+    raise Error, "Could not connect to AI service. Please try again.", cause: nil
+  rescue JSON::ParserError
+    # Avoid attaching parser errors that may contain response data.
+    raise Error, "AI service returned invalid JSON.", cause: nil
+  end
 end
