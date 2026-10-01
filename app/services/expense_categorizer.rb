@@ -31,20 +31,36 @@ class ExpenseCategorizer
     end
 
     def call
-        uri = URI("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent") # adresa API catre care vom trimite mesajul
+        uri = URI("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent") # adresa API către care vom trimite mesajul
         request = Net::HTTP::Post.new(uri) # pregateste o cerere POST
         request["Content-Type"] = "application/json" # anunta ca trimitem JSON
-        request["x-goog-api-key"] = ENV.fetch("GEMINI_API_KEY") # x-goog-api-key pune cheia in antetul cererii. ENV.fetch o citește din variabila setată în terminal; nu scriem cheia în fișier.
+
+        api_key = ENV["GEMINI_API_KEY"]
+
+            if api_key.blank?
+                raise Error, "AI service is not configured."
+            end
+
+            request["x-goog-api-key"] = api_key
+
         request.body = request_body # pune JSON-ul construit de mine în corpul cererii.
 
-        response = Net::HTTP.start( # trimitem cererea
-            uri.hostname, # identifică serverul și portul la care ne conectăm
-            uri.port, # portul
-            use_ssl: true, # folosește o conexiune HTTPS criptată.
-            open_timeout: 10, # așteaptă cel mult 10 secunde pentru conectare
-            read_timeout: 30 # limitează așteptarea la citirea răspunsului.
+        response = nil
+
+        2.times do |attempt|
+        response = Net::HTTP.start(
+            uri.hostname,
+            uri.port,
+            use_ssl: true,
+            open_timeout: 10,
+            read_timeout: 30
         ) do |http|
-            http.request(request) # trimite efectiv cererea pregătită.
+            http.request(request)
+        end
+
+        break unless response.code == "503" && attempt == 0
+
+        sleep 1
         end
 
         # tratăm cazul în care Gemini răspunde cu o eroare
