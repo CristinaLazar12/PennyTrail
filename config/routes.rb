@@ -12,7 +12,9 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   # root "posts#index"
   root "expenses#index"
-  resources :expenses, only: [ :index, :new, :create, :show, :edit, :update, :destroy ]
+  resources :expenses, only: [ :index, :new, :create, :show, :edit, :update, :destroy ] do
+    post :suggest_category, on: :collection
+  end
 
   get "summary", to: "summaries#show"
 end

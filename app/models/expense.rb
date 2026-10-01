@@ -16,4 +16,5 @@ class Expense < ApplicationRecord
   validates :amount, presence: true,
                      numericality: { greater_than: 0 }
   validates :category, inclusion: { in: CATEGORIES }
+  validates :ai_category, inclusion: { in: CATEGORIES }, allow_nil: true
 end

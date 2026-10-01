@@ -1,33 +1,59 @@
-<% if @expense.errors.any? %>
-    <ul>
-        <% @expense.errors.full_messages.each do |message| %>
-            <li>
-                <%= message %>
-            </li>
+<div id="expense_form" data-controller="ai-suggestion">
+    <% if @expense.errors.any? %>
+        <ul>
+            <% @expense.errors.full_messages.each do |message| %>
+                <li>
+                    <%= message %>
+                </li>
+            <% end %>
+        </ul>
+    <% end %>
+
+    <%= form_with model: @expense do |form| %>
+        <% if @ai_suggestion_token.present? %>
+            <%= hidden_field_tag :ai_suggestion_token, @ai_suggestion_token,
+                data: { ai_suggestion_target: "token" } %>
         <% end %>
-    </ul>
-<% end %>
 
-<%= form_with model: @expense do |form| %>
-    <div>
-        <%= form.label :description %>
-        <%= form.text_field :description %>
-    </div>
+        <div>
+            <%= form.label :description %>
+            <%= form.text_field :description,
+                data: { action: "input->ai-suggestion#invalidate" } %>
+        </div>
 
-    <div>
-        <%= form.label :spent_on %>
-        <%= form.date_field :spent_on %>
-    </div>
+        <div>
+            <%= form.label :spent_on %>
+            <%= form.date_field :spent_on %>
+        </div>
 
-    <div>
-        <%= form.label :category %>
-        <%= form.select :category, Expense::CATEGORIES, prompt: "Choose a category" %>
-    </div>
+        <% if @expense.ai_category.present? %>
+            <div data-ai-suggestion-target="suggestion">
+                <p>
+                    AI suggestion: <strong><%= @expense.ai_category %></strong>
+                </p>
+                <p>You can choose this category or another one below.</p>
+            </div>
+        <% end %>
 
-    <div>
-        <%= form.label :amount %>
-        <%= form.number_field :amount, step: 0.01 %>
-    </div>
+        <div>
+            <%= form.label :category %>
+            <%= form.select :category, Expense::CATEGORIES, prompt: "Choose a category" %>
+        </div>
 
-    <%= form.submit %>
-<% end %>
+        <div>
+            <%= form.label :amount %>
+            <%= form.number_field :amount, step: 0.01,
+                data: { action: "input->ai-suggestion#invalidate" } %>
+        </div>
+
+        <% if @expense.new_record? %>
+            <%= form.button "Suggest category",
+                    type: "submit",
+                    formaction: suggest_category_expenses_path,
+                    formmethod: "post",
+                    data: { turbo_submits_with: "Getting suggestion..." } %>
+        <% end %>
+
+        <%= form.submit %>
+    <% end %>
+</div>

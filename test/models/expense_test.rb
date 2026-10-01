@@ -47,4 +47,41 @@ class ExpenseTest < ActiveSupport::TestCase
     assert_not expense.valid?
     assert_includes expense.errors[:category], "can't be blank"
   end
+
+  test "expense is valid when the final category differs from the AI suggestion" do
+    expense = Expense.new(
+      description: "Dinner with a show",
+      amount: "120.50",
+      spent_on: Date.current,
+      ai_category: "Dining Out",
+      category: "Entertainment"
+    )
+
+    assert expense.valid?, expense.errors.full_messages.join(", ")
+  end
+
+  test "expense is invalid with unsupported AI category" do
+    expense = Expense.new(
+      description: "Dinner with a show",
+      amount: "120.50",
+      spent_on: Date.current,
+      ai_category: "Unknown",
+      category: "Entertainment"
+    )
+
+    assert_not expense.valid?
+    assert_includes expense.errors[:ai_category], "is not included in the list"
+  end
+
+  test "expense is valid when the AI suggestion is accepted" do
+    expense = Expense.new(
+      description: "Dinner with a show",
+      amount: "120.50",
+      spent_on: Date.current,
+      ai_category: "Dining Out",
+      category: "Dining Out"
+    )
+
+    assert expense.valid?, expense.errors.full_messages.join(", ")
+  end
 end
